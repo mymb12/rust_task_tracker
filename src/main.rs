@@ -2,6 +2,7 @@ use std::env;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::{self, Write};
+use uuid::Uuid;
 
 pub mod task_class;
 use task_class::Tasks;
@@ -28,27 +29,26 @@ fn check_file_existance(filepath: &String) {
 }
 
 fn process_input(args: &[String], tasks: &mut Tasks) {
-    if args.len() < 2 {
+    if args.len() < 3 {
         tasks.list_all();
         return;
     }
 
     let command = args[1].clone();
-
     match command.as_str() {
-        "add" => tasks.add_task(None, args[2].clone().as_str(), None),
-        "update" => tasks.update_task(
-            args[2]
-                .clone()
-                .parse::<u64>()
-                .expect("second argument cannot be converted to u64"),
+        "add" => tasks.add_task(
+            None,
+            args[2].clone().as_str(),
+            task_class::TaskStatus::NotDone,
         ),
-        "remove" => tasks.delete_task(
-            args[2]
-                .clone()
-                .parse::<u64>()
-                .expect("second argument cannot be converted to u64"),
-        ),
+        "update" => match Uuid::parse_str(&args[2]) {
+            Ok(uuid) => tasks.update_task(uuid),
+            Err(_) => println!("Invalid UUID format: {}", args[2]),
+        },
+        "remove" => match Uuid::parse_str(&args[2]) {
+            Ok(uuid) => tasks.delete_task(uuid),
+            Err(_) => println!("Invalid UUID format: {}", args[2]),
+        },
         _ => println!("such command was not defined"),
     };
 
