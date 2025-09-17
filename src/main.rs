@@ -1,8 +1,6 @@
 use std::env;
-
 use std::fs;
 use std::fs::OpenOptions;
-
 use std::io::{self, Write};
 
 pub mod task_class;
@@ -70,7 +68,6 @@ fn get_json_data(filepath: &String) -> serde_json::Value {
 }
 
 fn update_json_data(json_data: &serde_json::Value, filepath: &String) {
-    //TODO: create a function that will convert Tasks into serde_json::Value
     std::fs::write(filepath, serde_json::to_string_pretty(json_data).unwrap())
         .expect("Can't write file");
 }
@@ -86,5 +83,6 @@ fn main() {
 
     process_input(&args, &mut tasks);
 
-    update_json_data(&json_data, &filepath);
+    let updated_json = tasks.to_json_value();
+    update_json_data(&updated_json, &filepath);
 }

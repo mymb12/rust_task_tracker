@@ -1,6 +1,8 @@
+use serde_json::{json, Value};
+
 static mut CURR_NUM: u64 = 0;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub enum TaskStatus {
     NotDone,
     InProgress,
@@ -11,7 +13,7 @@ pub struct Tasks {
     tasks: Vec<Task>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Task {
     pub id: u64,
     pub status: TaskStatus,
@@ -67,7 +69,7 @@ impl Tasks {
         }
     }
 
-    pub fn create_tasks_instance(array: &mut Option<&mut Vec<serde_json::Value>>) -> Tasks {
+    pub fn create_tasks_instance(array: &mut Option<&mut Vec<Value>>) -> Tasks {
         match array {
             Some(array) => {
                 let mut tasks = Tasks::new(Vec::new());
@@ -75,7 +77,7 @@ impl Tasks {
                 for i in 0..array.len() {
                     tasks.add_task(
                         array[i]["id"].as_u64(),
-                        array[i]["desc"].as_str().unwrap(),
+                        array[i]["describtion"].as_str().unwrap(),
                         Some(array[i]["status"].as_str().unwrap()),
                     );
                 }
@@ -84,6 +86,22 @@ impl Tasks {
             }
             None => Tasks::new(Vec::new()),
         }
+    }
+
+    pub fn to_json_value(&self) -> Value {
+        let task_values: Vec<Value> = self
+            .tasks
+            .iter()
+            .map(|task| {
+                json!({
+                    "id": task.id,
+                    "describtion": task.describtion,
+                    "status": task.status
+                })
+            })
+            .collect();
+
+        Value::Array(task_values)
     }
 
     pub fn list_all(&self) {

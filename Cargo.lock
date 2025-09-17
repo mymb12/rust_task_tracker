@@ -45,6 +45,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6aaeb1e94f53b16384af593c71e20b095e958dab1d26939c1b70645c5cfbcc0b"
 dependencies = [
  "serde_core",
+ "serde_derive",
 ]
 
 [[package]]
@@ -95,6 +96,7 @@ dependencies = [
 name = "task-tracker"
 version = "0.1.0"
 dependencies = [
+ "serde",
  "serde_json",
 ]
 

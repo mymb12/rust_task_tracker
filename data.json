@@ -1,12 +1,7 @@
 [
   {
-    "desc": "other desc",
-    "id": "1",
-    "status": "In Progress"
-  },
-  {
-    "desc": "some desc",
-    "id": "2",
+    "describtion": "some task",
+    "id": 1,
     "status": "Done"
   }
 ]
