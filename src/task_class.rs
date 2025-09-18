@@ -2,6 +2,9 @@ use chrono::Utc;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
+use sqlx::postgres::PgPool;
+use std::error::Error;
+
 #[derive(Debug, Clone, serde::Serialize)]
 pub enum TaskStatus {
     NotDone,
@@ -11,6 +14,7 @@ pub enum TaskStatus {
 
 pub struct Tasks {
     tasks: Vec<Task>,
+    database: Option<PgPool>,
 }
 
 #[derive(Debug, Clone)]
@@ -22,19 +26,83 @@ pub struct Task {
     pub time_updated: Option<chrono::DateTime<Utc>>,
 }
 
-impl Tasks {
-    pub fn new(tasks: Vec<Task>) -> Self {
-        Tasks { tasks }
+impl TaskStatus {
+    pub fn to_string(&self) -> String {
+        match self {
+            TaskStatus::NotDone => "NotDone".to_string(),
+            TaskStatus::InProgress => "InProgress".to_string(),
+            TaskStatus::Done => "Done".to_string(),
+        }
     }
 
-    pub fn add_task(&mut self, id: Option<Uuid>, desc: &str, status: TaskStatus) {
-        self.tasks.push(Task {
+    pub fn from_string(s: &str) -> Self {
+        match s.trim().to_lowercase().as_str() {
+            "notdone" => TaskStatus::NotDone,
+            "inprogress" => TaskStatus::InProgress,
+            "done" => TaskStatus::Done,
+            _ => TaskStatus::NotDone,
+        }
+    }
+}
+
+impl Tasks {
+    pub fn new(tasks: Vec<Task>) -> Self {
+        Tasks {
+            tasks,
+            database: None,
+        }
+    }
+
+    pub async fn connect_database(&mut self) -> Result<(), Box<dyn Error>> {
+        let url = "postgres://postgres:123@localhost:5433/rust_task_tracker";
+        let pool = sqlx::postgres::PgPool::connect(url).await?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS task (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                status VARCHAR(20) NOT NULL DEFAULT 'NotDone',
+                describtion TEXT NOT NULL,
+                time_created TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                time_updated TIMESTAMPTZ
+            )",
+        )
+        .execute(&pool)
+        .await?;
+
+        self.database = Some(pool);
+        println!("Postgres database connected");
+        Ok(())
+    }
+
+    pub async fn add_task(&mut self, id: Option<Uuid>, desc: &str, status: TaskStatus) {
+        let new_task = Task {
             id: id.unwrap_or(Uuid::new_v4()),
             status,
             describtion: desc.to_string(),
             time_created: Utc::now(),
             time_updated: None,
-        })
+        };
+
+        if let Some(pool) = &self.database {
+            let result = sqlx::query(
+                "INSERT INTO task (id, status, describtion, time_created, time_updated) 
+                 VALUES ($1, $2, $3, $4, $5)",
+            )
+            .bind(new_task.id)
+            .bind(new_task.status.to_string())
+            .bind(&new_task.describtion)
+            .bind(new_task.time_created)
+            .bind(new_task.time_updated)
+            .execute(pool)
+            .await;
+
+            match result {
+                Ok(_) => println!("Task added to database with ID: {}", new_task.id),
+                Err(e) => eprintln!("Failed to add task to database: {}", e),
+            }
+        }
+
+        self.tasks.push(new_task);
     }
 
     pub fn inset_object_from_json(
@@ -44,48 +112,75 @@ impl Tasks {
         status: Option<&str>,
         time_created: &str,
     ) {
-        let status = match status.unwrap_or("").trim().to_lowercase().as_str() {
-            "notdone" => TaskStatus::NotDone,
-            "inprogress" => TaskStatus::InProgress,
-            "done" => TaskStatus::Done,
-            _ => TaskStatus::NotDone,
-        };
+        let stat = TaskStatus::from_string(status.unwrap_or("NotDone"));
 
         self.tasks.push(Task {
             id,
-            status,
+            status: stat,
             describtion: desc.to_string(),
             time_created: time_created.parse().unwrap(),
             time_updated: Some(Utc::now()),
         })
     }
 
-    pub fn update_task(&mut self, id: Uuid) {
-        for i in 0..self.tasks.len() {
-            if self.tasks[i].id == id {
-                match self.tasks[i].status {
-                    TaskStatus::NotDone => {
-                        self.tasks[i].status = TaskStatus::InProgress;
+    pub async fn update_task(&mut self, id: Uuid) {
+        if let Some(task) = self.tasks.iter_mut().find(|t| t.id == id) {
+            task.status = match task.status {
+                TaskStatus::NotDone => TaskStatus::InProgress,
+                TaskStatus::InProgress => TaskStatus::Done,
+                TaskStatus::Done => TaskStatus::Done, // Stay Done
+            };
+            task.time_updated = Some(Utc::now());
+
+            if let Some(pool) = &self.database {
+                let result =
+                    sqlx::query("UPDATE task SET status = $1, time_updated = $2 WHERE id = $3")
+                        .bind(task.status.to_string())
+                        .bind(task.time_updated)
+                        .bind(id)
+                        .execute(pool)
+                        .await;
+
+                match result {
+                    Ok(rows) => {
+                        if rows.rows_affected() > 0 {
+                            println!("Task {} updated in database", id);
+                        } else {
+                            println!("Task {} not found in database", id);
+                        }
                     }
-                    TaskStatus::InProgress => {
-                        self.tasks[i].status = TaskStatus::Done;
-                    }
-                    TaskStatus::Done => {}
+                    Err(e) => eprintln!("Failed to update task in database: {}", e),
                 }
-
-                self.tasks[i].time_updated = Some(Utc::now());
-
-                break;
             }
+        } else {
+            println!("Task {} not found", id);
         }
     }
 
-    pub fn delete_task(&mut self, id: Uuid) {
-        for i in 0..self.tasks.len() {
-            if self.tasks[i].id == id {
-                self.tasks.remove(i);
-                break;
+    pub async fn delete_task(&mut self, id: Uuid) {
+        if let Some(pos) = self.tasks.iter().position(|t| t.id == id) {
+            self.tasks.remove(pos);
+            println!("Task {} deleted locally", id);
+
+            if let Some(pool) = &self.database {
+                let result = sqlx::query("DELETE FROM task WHERE id = $1")
+                    .bind(id)
+                    .execute(pool)
+                    .await;
+
+                match result {
+                    Ok(rows) => {
+                        if rows.rows_affected() > 0 {
+                            println!("Task {} deleted from database", id);
+                        } else {
+                            println!("Task {} not found in database", id);
+                        }
+                    }
+                    Err(e) => eprintln!("Failed to delete task from database: {}", e),
+                }
             }
+        } else {
+            println!("Task {} not found", id);
         }
     }
 
@@ -130,6 +225,10 @@ impl Tasks {
     }
 
     pub fn list_all(&self) {
-        println!("{:#?}", self.tasks)
+        println!("{:#?}", self.tasks);
+    }
+
+    pub fn find_task(&mut self, id: &Uuid) -> Option<&mut Task> {
+        self.tasks.iter_mut().find(|t| t.id == *id)
     }
 }
