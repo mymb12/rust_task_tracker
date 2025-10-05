@@ -5,6 +5,9 @@ use uuid::Uuid;
 use sqlx::postgres::PgPool;
 use std::error::Error;
 
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write};
+
 #[derive(Debug, Clone, serde::Serialize)]
 pub enum TaskStatus {
     NotDone,
@@ -103,6 +106,52 @@ impl Tasks {
         }
 
         self.tasks.push(new_task);
+    }
+
+    fn check_file_existance(filepath: &String) {
+        let file_exists = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .truncate(false)
+            .open(filepath);
+
+        match file_exists {
+            Ok(mut f) => {
+                let _ = f.write_all(b"[]");
+                println!("{} file wasn't found, so new file was created", filepath);
+            }
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                println!("{} file already exists", filepath)
+            }
+            Err(e) => {
+                eprintln!("Error creating file: {}", e)
+            }
+        }
+    }
+
+    pub fn get_json_data(&mut self, filepath: &String) {
+        Self::check_file_existance(filepath);
+
+        let res: Result<String, std::io::Error> = fs::read_to_string(filepath);
+        let s = match res {
+            Ok(s) => s,
+            Err(_) => panic!("Can't read it"),
+        };
+
+        let mut array: serde_json::Value = serde_json::from_str(&s).expect("Can't parse json");
+        let mut array = array.as_array_mut();
+
+        self.tasks = Self::create_tasks_instance(&mut array).tasks;
+    }
+
+    pub fn update_json(&mut self, filepath: &String) {
+        let updated_json = self.to_json_value();
+
+        std::fs::write(
+            filepath,
+            serde_json::to_string_pretty(&updated_json).unwrap(),
+        )
+        .expect("Can't write file");
     }
 
     pub fn inset_object_from_json(

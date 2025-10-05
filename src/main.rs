@@ -1,40 +1,15 @@
 use std::env;
 use std::error::Error;
-use std::fs;
-use std::fs::OpenOptions;
-use std::io::{self, Write};
 use uuid::Uuid;
 
 pub mod task_class;
 use task_class::Tasks;
-
-fn check_file_existance(filepath: &String) {
-    let file_exists = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .truncate(false)
-        .open(filepath);
-
-    match file_exists {
-        Ok(mut f) => {
-            let _ = f.write_all(b"[]");
-            println!("{} file wasn't found, so new file was created", filepath);
-        }
-        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
-            println!("{} file already exists", filepath)
-        }
-        Err(e) => {
-            eprintln!("Error creating file: {}", e)
-        }
-    }
-}
 
 async fn process_input(args: &[String], tasks: &mut Tasks) {
     if args.len() < 2 {
         tasks.list_all();
         return;
     }
-
     let command = args[1].clone();
     match command.as_str() {
         "add" => {
@@ -62,34 +37,13 @@ async fn process_input(args: &[String], tasks: &mut Tasks) {
     tasks.list_all();
 }
 
-fn get_json_data(filepath: &String) -> serde_json::Value {
-    check_file_existance(filepath);
-
-    let res: Result<String, std::io::Error> = fs::read_to_string(filepath);
-    let s = match res {
-        Ok(s) => s,
-        Err(_) => panic!("Can't read it"),
-    };
-
-    serde_json::from_str(&s).expect("Can't parse json")
-}
-
-fn update_json_data(json_data: &serde_json::Value, filepath: &String) {
-    std::fs::write(filepath, serde_json::to_string_pretty(json_data).unwrap())
-        .expect("Can't write file");
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    //TODO: create a postgreql implementation
-    //TODO: test created script
     let args: Vec<String> = env::args().collect();
 
     let filepath = String::from("data.json");
-    let mut json_data = get_json_data(&filepath);
-
-    let mut array = json_data.as_array_mut();
-    let mut tasks = Tasks::create_tasks_instance(&mut array);
+    let mut tasks = Tasks::new(Vec::new());
+    tasks.get_json_data(&filepath);
 
     if let Err(e) = tasks.connect_database().await {
         eprintln!("Failed to connect to database: {}", e);
@@ -97,9 +51,35 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     process_input(&args, &mut tasks).await;
-
-    let updated_json = tasks.to_json_value();
-    update_json_data(&updated_json, &filepath);
+    tasks.update_json(&filepath);
 
     Ok(())
 }
+/*
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct TaskClass {
+    body: String,
+    id: Option<String>,
+}
+
+#[tokio::main]
+async fn main() {
+    let router01 = Router::new().route("/tasks", get(list_all).post(add_task));
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:6570").await.unwrap();
+
+    axum::serve(listener, router01).await.unwrap();
+}
+
+#[debug_handler]
+async fn list_all() -> Json<TaskClass> {
+    Json::from(TaskClass {
+        body: "some".to_string(),
+        id: Some(uuid::Uuid::new_v4().to_string()),
+    })
+}
+
+async fn add_task(Query(mut v): Query<TaskClass>) -> Json<TaskClass> {
+    v.id = Some(uuid::Uuid::new_v4().to_string());
+
+    Json::from(v)
+} */
