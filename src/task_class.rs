@@ -277,6 +277,21 @@ impl Tasks {
         println!("{:#?}", self.tasks);
     }
 
+    pub fn get_all_tasks(&self) -> Vec<serde_json::Value> {
+        self.tasks
+            .iter()
+            .map(|task| {
+                serde_json::json!({
+                    "id": task.id,
+                    "describtion": task.describtion,
+                    "status": task.status,
+                    "time_created": task.time_created,
+                    "time_updated": task.time_updated,
+                })
+            })
+            .collect()
+    }
+
     pub fn find_task(&mut self, id: &Uuid) -> Option<&mut Task> {
         self.tasks.iter_mut().find(|t| t.id == *id)
     }
