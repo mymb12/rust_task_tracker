@@ -25,8 +25,7 @@ type AppState = Arc<Mutex<Tasks>>;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    dotenv().expect(".env file not found");
-
+    dotenv().ok();
     let args: Vec<String> = env::args().collect();
 
     let filepath = String::from("data.json");

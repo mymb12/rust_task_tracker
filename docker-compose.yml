@@ -1,0 +1,32 @@
+services:
+  app:
+    build: . # build using the Dockerfile in this folder
+    ports:
+      - "6570:6570" # forward localhost:6570 -> container:6570
+    environment:
+      DATABASE_URL: postgres://postgres:devpassword@db:5432/rust_task_tracker
+    depends_on:
+      db:
+        condition: service_healthy # wait for Postgres to be ready
+    volumes:
+      - ./data.json:/app/data.json # your data.json file, shared in
+
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: rust_task_tracker
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+# Named volume — Postgres data lives here, survives container restarts
+volumes:
+  postgres_data:

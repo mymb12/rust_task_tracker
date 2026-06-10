@@ -10,6 +10,23 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: devpassword
+          POSTGRES_DB: rust_task_tracker
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:devpassword@localhost:5433/rust_task_tracker
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -22,3 +39,6 @@ jobs:
 
       - name: Run tests
         run: cargo test
+
+      - name: Build Docker image
+        run: docker build -t rust_task_tracker:${{ github.sha }} .
