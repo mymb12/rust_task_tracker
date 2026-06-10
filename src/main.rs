@@ -19,10 +19,14 @@ pub mod task_class;
 use task_class::{TaskStatus, Tasks};
 use uuid::Uuid;
 
+use dotenvy::dotenv;
+
 type AppState = Arc<Mutex<Tasks>>;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    dotenv().expect(".env file not found");
+
     let args: Vec<String> = env::args().collect();
 
     let filepath = String::from("data.json");
@@ -133,4 +137,18 @@ async fn process_input(args: &[String], tasks: &mut Tasks) {
     };
 
     tasks.list_all();
+}
+
+pub fn add(a: i32, b: i32) -> i32 {
+    a + b
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_add() {
+        assert_eq!(add(2, 2), 4);
+    }
 }

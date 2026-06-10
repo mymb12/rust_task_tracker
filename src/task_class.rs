@@ -57,8 +57,13 @@ impl Tasks {
     }
 
     pub async fn connect_database(&mut self) -> Result<(), Box<dyn Error>> {
-        let url = "postgres://postgres:M@nsik12@localhost:5433/rust_task_tracker";
-        let pool = sqlx::postgres::PgPool::connect(url).await?;
+        let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+            "postgres://postgres:password@localhost:5433/rust_task_tracker".to_string()
+        });
+
+        println!("{}", url);
+
+        let pool = sqlx::postgres::PgPool::connect(&url).await?;
 
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS task (
