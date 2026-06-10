@@ -61,7 +61,7 @@ impl Tasks {
             "postgres://postgres:password@localhost:5433/rust_task_tracker".to_string()
         });
 
-        println!("{}", url);
+        println!("DB connection URL: \n{}", url);
 
         let pool = sqlx::postgres::PgPool::connect(&url).await?;
 
@@ -210,6 +210,8 @@ impl Tasks {
         } else {
             println!("Task {} not found", id);
         }
+
+        self.update_json(&"data.json".to_string());
     }
 
     pub async fn delete_task(&mut self, id: Uuid) {

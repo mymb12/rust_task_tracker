@@ -1,3 +1,7 @@
+//INFO: To access Postgres DB in Docker container use psql [connection-url]
+//INFO: If macos use pgcli instead: pgcli [connection-url]
+//INFO: Replace db -> localhost and 5432 -> 5434 before running
+
 use std::env;
 use std::sync::Arc;
 use tokio::sync::Mutex;
