@@ -57,7 +57,7 @@ impl Tasks {
     }
 
     pub async fn connect_database(&mut self) -> Result<(), Box<dyn Error>> {
-        let url = "postgres://postgres:123@localhost:5433/rust_task_tracker";
+        let url = "postgres://postgres:M@nsik12@localhost:5433/rust_task_tracker";
         let pool = sqlx::postgres::PgPool::connect(url).await?;
 
         sqlx::query(
@@ -106,6 +106,7 @@ impl Tasks {
         }
 
         self.tasks.push(new_task);
+        self.update_json(&"data.json".to_string());
     }
 
     fn check_file_existance(filepath: &String) {
@@ -231,6 +232,8 @@ impl Tasks {
         } else {
             println!("Task {} not found", id);
         }
+
+        self.update_json(&"data.json".to_string());
     }
 
     pub fn create_tasks_instance(array: &mut Option<&mut Vec<Value>>) -> Tasks {
